@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hangouts</title>
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#ff6b35">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hangouts">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #222222;
+      --border: #2a2a2a;
+      --accent: #ff6b35;
+      --accent2: #ff9a6c;
+      --text: #f0f0f0;
+      --muted: #888;
+      --panel: 360px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+    }
+
+    /* ── VIBE PICKER ── */
+    #vibe-screen {
+      min-height: 100vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 24px 100px;
+      background: var(--bg);
+      position: relative;
+    }
+
+    #vibe-screen::before {
+      content: '';
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(255, 107, 53, 0.12) 0%, transparent 70%);
+      top: -100px;
+      right: -100px;
+      pointer-events: none;
+    }
+
+    .picker-inner {
+      width: 100%;
+      max-width: 560px;
+      position: relative;
+      z-index: 1;
+      padding: 20px 0;
+    }
+
+    .app-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 42px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 4px;
+      letter-spacing: -1px;
+    }
+
+    .app-title span {
+      color: var(--accent);
+    }
+
+    .app-sub {
+      color: var(--muted);
+      font-size: 15px;
+      margin-bottom: 36px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .picker-section {
+      margin-bottom: 24px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      padding: 9px 18px;
+      border-radius: 100px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.18s ease;
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    .chip.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .find-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .find-btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .find-btn:disabled {
+      background: var(--surface2);
+      color: var(--muted);
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* ── RESULTS SCREEN ── */
+    #results-screen {
+      display: none;
+      height: 100vh;
+      width: 100vw;
+      position: relative;
+    }
+
+    /* Map - fixed, doesn't scroll */
+    #map {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: calc(100% - var(--panel));
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Black map theme */
+    .leaflet-tile {
+      filter: brightness(0.3) saturate(0) contrast(1.2);
+    }
+
+    .leaflet-container {
+      background: #000;
+    }
+
+    /* Hide zoom controls */
+    .leaflet-control-zoom {
+      display: none !important;
+    }
+
+    /* Top bar */
+    .top-bar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      right: calc(var(--panel) + 16px);
+      z-index: 10;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .back-pill {
+      background: rgba(15, 15, 15, 0.9);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 18px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      backdrop-filter: blur(10px);
+      transition: background 0.15s;
+    }
+
+    .back-pill:hover {
+      background: var(--surface);
+    }
+
+    .result-count-pill {
+      background: rgba(15, 15, 15, 0.9);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 10px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      backdrop-filter: blur(10px);
+    }
+
+    .result-count-pill strong {
+      color: var(--accent);
+    }
+
+    /* Side panel - scrollable independently */
+    #side-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: var(--panel);
+      height: 100%;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 20px 20px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .panel-sub {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .panel-actions {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .panel-fab {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.15s;
+      text-align: center;
+    }
+
+    .panel-fab:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Scrollable places list */
+    .places-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .place-card {
+      display: flex;
+      gap: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: 1px solid transparent;
+      margin-bottom: 4px;
+    }
+
+    .place-card:hover {
+      background: var(--surface);
+    }
+
+    .place-card.active {
+      background: var(--surface);
+      border-color: var(--accent);
+    }
+
+    .place-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: transparent;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .place-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .place-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .place-meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .place-desc {
+      color: #666;
+      font-size: 12px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .place-tags {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+
+    .place-tag {
+      background: rgba(255, 107, 53, 0.12);
+      color: var(--accent2);
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .dir-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 100px;
+      border: 1px solid rgba(255, 107, 53, 0.3);
+      transition: background 0.15s;
+    }
+
+    .dir-link:hover {
+      background: rgba(255, 107, 53, 0.1);
+    }
+
+    /* Custom map marker - small dot style */
+    .map-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--accent);
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 6px rgba(255, 107, 53, 0.8);
+    }
+
+    .map-label {
+      background: transparent;
+      color: white;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'DM Sans', sans-serif;
+      white-space: nowrap;
+      text-shadow: 0 0 4px #000, 0 0 4px #000, 0 0 4px #000;
+      border: none;
+    }
+
+    /* Picker screen fabs */
+    #picker-fabs {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      gap: 12px;
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+    }
+
+    .fab-small {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 100px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .fab-small:hover {
+      background: var(--surface2);
+    }
+
+    /* Overlay drawer */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 2000;
+      align-items: flex-end;
+      justify-content: center;
+    }
+
+    .overlay.open {
+      display: flex;
+    }
+
+    .drawer {
+      background: var(--surface);
+      width: 100%;
+      max-width: 560px;
+      border-radius: 20px 20px 0 0;
+      padding: 24px 20px 32px;
+      max-height: 85vh;
+      overflow-y: auto;
+      border-top: 1px solid var(--border);
+    }
+
+    .drawer h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      margin-bottom: 4px;
+    }
+
+    .drawer .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .drawer label {
+      font-weight: 600;
+      display: block;
+      margin: 14px 0 8px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .drawer input,
+    .drawer textarea {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .drawer input:focus,
+    .drawer textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .drawer textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .dnote {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 5px;
+    }
+
+    .dbtns {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .dsubmit {
+      flex: 1;
+      padding: 13px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 25px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .dcancel {
+      padding: 13px 20px;
+      background: var(--bg);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 25px;
+      font-size: 15px;
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .dchips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .dchip {
+      padding: 8px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.15s;
+    }
+
+    .dchip.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .thankyou {
+      display: none;
+      text-align: center;
+      padding: 40px 10px;
+    }
+
+    .thankyou .emoji {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .thankyou h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+
+    .thankyou p {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    /* Mobile */
+    @media (max-width: 700px) {
+      :root {
+        --panel: 100vw;
+      }
+
+      .app-title {
+        font-size: 28px;
+      }
+
+      .app-sub {
+        font-size: 13px;
+        margin-bottom: 24px;
+      }
+
+      .picker-inner {
+        padding: 10px 0;
+      }
+
+      #map {
+        width: 100%;
+        height: 45vh;
+        position: relative;
+      }
+
+      #results-screen {
+        overflow-y: auto;
+        height: 100vh;
+      }
+
+      #side-panel {
+        position: relative;
+        width: 100%;
+        height: auto;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        overflow: visible;
+      }
+
+      .places-list {
+        overflow: visible;
+        height: auto;
+      }
+
+      .top-bar {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        right: 8px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── VIBE PICKER ── -->
+  <div id="vibe-screen">
+    <div class="picker-inner">
+      <h1 class="app-title">What's your <span>vibe</span>?</h1>
+      <p class="app-sub">Tell us what you're feeling we'll find your perfect spot in Bangalore.</p>
+      <div id="location-pill" style="display:inline-block;background:var(--surface);border:1px solid var(--border);border-radius:100px;padding:6px 14px;font-size:12px;color:var(--muted);margin-bottom:20px;">📍 Detecting location...</div>
+
+      <!-- ORDER CHANGED: Vibe → Activity → Food -->
+      <div class="picker-section">
+        <div class="section-label">Pick a vibe</div>
+        <div class="chips" id="vibes"></div>
+      </div>
+
+      <div class="picker-section">
+        <div class="section-label">What do you want to do?</div>
+        <div class="chips" id="activities"></div>
+      </div>
+
+      <div class="picker-section">
+        <div class="section-label">What do you want to eat? (optional)</div>
+        <div class="chips" id="foods"></div>
+      </div>
+
+      <button class="find-btn" id="find-btn" disabled onclick="findPlaces()">Find my vibe spots →</button>
+    </div>
+  </div>
+
+  <!-- ── RESULTS SCREEN ── -->
+  <div id="results-screen">
+    <div id="map"></div>
+
+    <div class="top-bar">
+      <button class="back-pill" onclick="goBack()">← Back</button>
+      <div class="result-count-pill" id="count-pill"></div>
+    </div>
+
+    <div id="side-panel">
+      <div class="panel-header">
+        <div class="panel-title" id="panel-title">Your vibe spots</div>
+        <div class="panel-sub" id="panel-sub">Bangalore</div>
+      </div>
+      <div class="panel-actions">
+        <button class="panel-fab" onclick="openFeedback()">💬 Feedback</button>
+        <button class="panel-fab" onclick="openSuggest()">📍 Suggest a Place</button>
+      </div>
+      <div class="places-list" id="places-list"></div>
+    </div>
+  </div>
+
+  <!-- Picker fabs -->
+  <div id="picker-fabs">
+    <button class="fab-small" onclick="openFeedback()">💬 Feedback</button>
+    <button class="fab-small" onclick="openSuggest()">📍 Suggest a Place</button>
+    <button class="fab-small" onclick="openDonate()">❤️ Donate</button>
+  </div>
+
+  <!-- ── SUGGEST OVERLAY ── -->
+  <div class="overlay" id="suggest-overlay" onclick="overlayClick(event,'suggest-overlay')">
+    <div class="drawer">
+      <div id="suggest-form">
+        <h2>📍 Suggest a Place</h2>
+        <p class="sub">Know a spot Bangalore should know about?</p>
+
+        <label>Vibe (pick all that apply)</label>
+        <div class="dchips" id="s-vibes">
+          <div class="dchip" onclick="toggleMulti(this,'sv')">Chill</div>
+          <div class="dchip" onclick="toggleMulti(this,'sv')">Adventure</div>
+          <div class="dchip" onclick="toggleMulti(this,'sv')">Romantic</div>
+          <div class="dchip" onclick="toggleMulti(this,'sv')">Party</div>
+          <div class="dchip" onclick="toggleMulti(this,'sv')">Food Hunt</div>
+        </div>
+
+        <label>Food Type (pick all that apply)</label>
+        <div class="dchips" id="s-food">
+          <div class="dchip" onclick="toggleMulti(this,'sf')">South Indian</div>
+          <div class="dchip" onclick="toggleMulti(this,'sf')">North Indian</div>
+          <div class="dchip" onclick="toggleMulti(this,'sf')">Pizza</div>
+          <div class="dchip" onclick="toggleMulti(this,'sf')">Biryani</div>
+          <div class="dchip" onclick="toggleMulti(this,'sf')">Cafe</div>
+          <div class="dchip" id="varieties-chip" onclick="toggleVarieties(this)">Varieties</div>
+        </div>
+        <div style="display:none;margin-top:8px;" id="varieties-box">
+          <input type="text" id="varieties-input" placeholder="e.g. Thai, Mexican, Japanese..." />
+        </div>
+
+        <label>Activity (pick all that apply)</label>
+        <div class="dchips" id="s-activity">
+          <div class="dchip" onclick="toggleMulti(this,'sa')">Hangout</div>
+          <div class="dchip" onclick="toggleMulti(this,'sa')">Trekking</div>
+          <div class="dchip" onclick="toggleMulti(this,'sa')">Shopping</div>
+          <div class="dchip" onclick="toggleMulti(this,'sa')">Gaming</div>
+          <div class="dchip" onclick="toggleMulti(this,'sa')">Movies</div>
+          <div class="dchip" onclick="toggleMulti(this,'sa')">Just Eat</div>
+          <div class="dchip" onclick="toggleMulti(this,'sa')">Concerts</div>
+        </div>
+
+        <label>Place Name *</label>
+        <input type="text" id="s-name" placeholder="e.g. Cubbon Park" />
+
+        <label>Area *</label>
+        <input type="text" id="s-area" placeholder="e.g. MG Road" />
+
+        <label>City</label>
+        <input type="text" id="s-city" value="Bangalore" />
+
+        <label>Description</label>
+        <textarea id="s-desc" placeholder="What makes this place special?"></textarea>
+
+        <label>Google Maps Link *</label>
+        <input type="text" id="s-maps" placeholder="Paste Google Maps share link" />
+        <p class="dnote">💡 Google Maps → Share → Copy link</p>
+
+        <div class="dbtns">
+          <button class="dcancel" onclick="closeOverlay('suggest-overlay')">Cancel</button>
+          <button class="dsubmit" onclick="submitSuggest()">Submit 🚀</button>
+        </div>
+      </div>
+      <div class="thankyou" id="suggest-thanks">
+        <div class="emoji">🎉</div>
+        <h3>That's so sweet of you!</h3>
+        <p>We'll review and add it soon.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── FEEDBACK OVERLAY ── -->
+  <div class="overlay" id="feedback-overlay" onclick="overlayClick(event,'feedback-overlay')">
+    <div class="drawer">
+      <div id="feedback-form">
+        <h2>💬 Feedback</h2>
+        <p class="sub">Tell us what you think!</p>
+        <label>Feedback *</label>
+        <textarea id="f-message" placeholder="What do you love? What can we improve?"></textarea>
+        <div class="dbtns">
+          <button class="dcancel" onclick="closeOverlay('feedback-overlay')">Cancel</button>
+          <button class="dsubmit" onclick="submitFeedback()">Send 🚀</button>
+        </div>
+      </div>
+      <div class="thankyou" id="feedback-thanks">
+        <div class="emoji">🙏</div>
+        <h3>Thank you!</h3>
+        <p>Your feedback means a lot to us.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DONATE OVERLAY ── -->
+  <div class="overlay" id="donate-overlay" onclick="overlayClick(event,'donate-overlay')">
+    <div class="drawer" style="text-align:center;padding:40px 20px;">
+      <div style="font-size:48px;margin-bottom:16px">❤️</div>
+      <h2 style="font-family:'Syne',sans-serif;margin-bottom:8px;">Support Hangouts</h2>
+      <p style="color:var(--muted);margin-bottom:24px;">We're working on making donations available. Check back soon!</p>
+      <div style="font-size:32px;margin-bottom:16px">🚀</div>
+      <p style="color:var(--accent);font-weight:600;">Coming Soon</p>
+      <button class="dcancel" style="margin-top:20px;width:100%;" onclick="closeOverlay('donate-overlay')">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+    const vibeEmojis = { 'Chill': '😌', 'Adventure': '🏔️', 'Romantic': '🌹', 'Party': '🎉', 'Food Hunt': '🍽️' };
+    const actEmojis = { 'Hangout': '☕', 'Trekking': '🥾', 'Shopping': '🛍️', 'Gaming': '🎮', 'Movies': '🎬', 'Just Eat': '🍴', 'Concerts': '🎵' };
+
+    // Bangalore place coordinates lookup
+    const coords = {
+      'Dyu Art Cafe': [12.9352, 77.6245],
+      'Blue Tokai Coffee': [12.9784, 77.6408],
+      'Third Wave Coffee': [12.9352, 77.6245],
+      'Yogisthaan': [12.9784, 77.6408],
+      'Dialogues Cafe': [12.9121, 77.5832],
+      'Paper and Pie': [12.9784, 77.6408],
+      'Cafe Noir': [12.9716, 77.5946],
+      'Cubbon Park': [12.9763, 77.5929],
+      'Church Street': [12.9716, 77.6069],
+      'Koramangala Social': [12.9352, 77.6245],
+      'UB City': [12.9716, 77.5946],
+      '100 Feet Road': [12.9784, 77.6408],
+      'Loco Bear': [12.9352, 77.6245],
+      'Smaaash': [12.9716, 77.6069],
+      'Amoeba': [12.9716, 77.6069],
+      'Play Arena': [12.9121, 77.6832],
+      'The Grid': [12.9352, 77.6245],
+      'LXG Esports': [12.9352, 77.6245],
+      'Nandi Hills': [13.3702, 77.6835],
+      'Savandurga': [12.9196, 77.2932],
+      'Skandagiri': [13.3702, 77.7035],
+      'Ramanagara Hills': [12.7157, 77.2836],
+      'Anthargange': [13.1986, 78.1732],
+      'Olive Beach': [12.9602, 77.5993],
+      'Grasshopper': [12.8967, 77.5850],
+      'Rim Naam': [12.9716, 77.6069],
+      'Tiamo': [12.9762, 77.6033],
+      'Skyye': [12.9716, 77.5946],
+      'Toit': [12.9784, 77.6408],
+      'Biergarten': [12.9352, 77.6245],
+      'Indigo XP': [12.9716, 77.6069],
+      'Badmaash': [12.9716, 77.6069],
+      'Rameshwaram Cafe': [12.9784, 77.6408],
+      'MTR': [12.9502, 77.5757],
+      'CTR': [13.0068, 77.5636],
+      'Vidyarthi Bhavan': [12.9421, 77.5726],
+      'Taaza Thindi': [12.9251, 77.5932],
+      'Meghana Foods': [12.9352, 77.6245],
+      'Empire Restaurant': [12.9831, 77.6012],
+      'Sharief Bhai': [12.9932, 77.6245],
+      'Hyderabad Biryani House': [12.9121, 77.6432],
+      'Mani\'s Dum Biryani': [12.9251, 77.5932],
+      'Punjab Grill': [12.9698, 77.7499],
+      'Delhi Highway': [12.9784, 77.6408],
+      'Oye Amritsar': [12.9352, 77.6245],
+      'Kebab Magic': [12.9932, 77.6245],
+      'Brik Oven': [12.9716, 77.6069],
+      'Pizza Bakery': [12.9784, 77.6408],
+      'Onesta': [12.9352, 77.6245],
+      'Toscano': [12.9716, 77.5946],
+      'Truffles': [12.9352, 77.6245],
+      'VV Puram Food Street': [12.9421, 77.5726],
+      'Commercial Street': [12.9831, 77.6012],
+      'Phoenix Marketcity': [12.9698, 77.7499],
+      'Orion Mall': [13.0121, 77.5538],
+      'Brigade Road': [12.9716, 77.6069],
+      'Forum South Bengaluru': [12.8967, 77.5850],
+      'PVR Orion Mall': [13.0121, 77.5538],
+      'INOX Garuda Mall': [12.9716, 77.6069],
+      'Cinepolis': [12.8967, 77.5850],
+      'PVR Phoenix Marketcity': [12.9698, 77.7499],
+      'Urvashi Theatre': [12.9502, 77.5757],
+    };
+
+    const vibes = ["Chill", "Adventure", "Romantic", "Party", "Food Hunt"];
+    const foods = ["South Indian", "North Indian", "Pizza", "Biryani", "Cafe", "Skip"];
+    const activities = ["Hangout", "Trekking", "Shopping", "Gaming", "Movies", "Just Eat", "Concerts"];
+    let selected = { vibe: "", foods: [], activity: "" };
+    let map = null;
+    let markers = [];
+
+    function renderButtons(containerId, items, key) {
+      const el = document.getElementById(containerId);
+      items.forEach(item => {
+        const btn = document.createElement("div");
+        btn.className = "chip";
+        btn.textContent = item;
+        btn.onclick = () => {
+          if (key === 'foods') {
+            // Multi-select for food
+            if (item === 'Skip') {
+              // Skip deselects all others
+              selected.foods = [];
+              el.querySelectorAll(".chip").forEach(b => b.classList.remove("active"));
+              if (!btn.classList.contains("active")) {
+                btn.classList.add("active");
+                selected.foods = ['Skip'];
+              }
+            } else {
+              // Remove Skip if selecting real food
+              selected.foods = selected.foods.filter(f => f !== 'Skip');
+              el.querySelectorAll(".chip").forEach(b => {
+                if (b.textContent === 'Skip') b.classList.remove("active");
+              });
+              if (btn.classList.contains("active")) {
+                btn.classList.remove("active");
+                selected.foods = selected.foods.filter(f => f !== item);
+              } else {
+                btn.classList.add("active");
+                selected.foods.push(item);
+              }
+            }
+          } else {
+            // Single select for vibe and activity
+            if (selected[key] === item) {
+              selected[key] = "";
+              btn.classList.remove("active");
+            } else {
+              selected[key] = item;
+              el.querySelectorAll(".chip").forEach(b => b.classList.remove("active"));
+              btn.classList.add("active");
+            }
+          }
+          checkReady();
+        };
+        el.appendChild(btn);
+      });
+    }
+
+    function checkReady() {
+      document.getElementById("find-btn").disabled = !(selected.vibe || selected.activity);
+    }
+
+    async function findPlaces() {
+      // Special case: Movies → show TMDB movies page
+      if (selected.activity === 'Movies') {
+        document.getElementById("vibe-screen").style.display = "none";
+        document.getElementById("picker-fabs").style.display = "none";
+        document.getElementById("results-screen").style.display = "block";
+        document.getElementById("map").style.display = "none";
+        document.getElementById("side-panel").style.width = "100%";
+        document.getElementById("side-panel").style.position = "relative";
+        document.getElementById("panel-title").textContent = "🎬 Now Showing & Coming Soon";
+        document.getElementById("panel-sub").textContent = "Bangalore Theatres";
+        document.getElementById("count-pill").innerHTML = 'Loading movies...';
+        loadMovies();
+        return;
+      }
+
+      // Reset map display
+      document.getElementById("map").style.display = "";
+      document.getElementById("side-panel").style.width = "";
+      document.getElementById("side-panel").style.position = "";
+
+      const params = new URLSearchParams();
+      if (selected.vibe) params.append("vibe", selected.vibe);
+      if (selected.activity) params.append("activity", selected.activity);
+      // Multi-food filter
+      const realFoods = selected.foods.filter(f => f !== 'Skip');
+      if (realFoods.length > 0) params.append("food_type", realFoods[0]); // send first food for now
+
+      try {
+        const res = await fetch(API + '/api/places?' + params);
+        const places = await res.json();
+
+        document.getElementById("vibe-screen").style.display = "none";
+        document.getElementById("picker-fabs").style.display = "none";
+        document.getElementById("results-screen").style.display = "block";
+
+        document.getElementById("panel-title").textContent =
+          (vibeEmojis[selected.vibe] || '') + ' ' + (selected.vibe || selected.activity) + ' spots';
+        document.getElementById("panel-sub").textContent =
+          (selected.activity || '') + (realFoods.length > 0 ? ' • ' + realFoods.join(', ') : '') + ' • Bangalore';
+        document.getElementById("count-pill").innerHTML =
+          '<strong>' + places.length + '</strong> places found';
+
+        if (!map) {
+          const center = userLocation ? [userLocation.lat, userLocation.lng] : [12.9716, 77.5946];
+          map = L.map("map", { zoomControl: false, attributionControl: false })
+            .setView(center, 13);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+        } else if (userLocation) {
+          map.setView([userLocation.lat, userLocation.lng], 13);
+        }
+
+        markers.forEach(m => map.removeLayer(m));
+        markers = [];
+
+        const list = document.getElementById("places-list");
+        list.innerHTML = "";
+
+        if (places.length === 0) {
+          list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:40px;margin-bottom:12px">😕</div><div>No spots found for this vibe yet.</div></div>';
+          return;
+        }
+
+        const bounds = [];
+
+        places.forEach((place, i) => {
+          const emoji = actEmojis[place.activity] || '📍';
+          const dirLink = place.maps_link || ('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(place.name + ' ' + place.area + ' Bangalore'));
+
+          const card = document.createElement("div");
+          card.className = "place-card";
+          card.id = "card-" + i;
+          card.innerHTML = `
+          <div class="place-icon">${emoji}</div>
+          <div class="place-info">
+            <div class="place-name">${place.name}</div>
+            <div class="place-meta">${place.area} • ${place.city || 'Bangalore'}</div>
+            <div class="place-desc">${place.description || ''}</div>
+            <div class="place-tags">
+              ${(place.vibes || []).map(v => '<span class="place-tag">' + v + '</span>').join('')}
+            </div>
+            <a class="dir-link" href="${dirLink}" target="_blank">📍 Directions</a>
+          </div>
+        `;
+          card.onclick = () => highlightCard(i);
+          list.appendChild(card);
+
+          const c = coords[place.name] || [12.9716, 77.5946];
+
+          const dotIcon = L.divIcon({
+            className: '',
+            html: '<div class="map-dot"></div>',
+            iconSize: [10, 10],
+            iconAnchor: [5, 5]
+          });
+
+          const marker = L.marker(c, { icon: dotIcon }).addTo(map);
+
+          const labelIcon = L.divIcon({
+            className: '',
+            html: '<div class="map-label">' + place.name + '</div>',
+            iconAnchor: [-8, 20]
+          });
+
+          const labelMarker = L.marker(c, { icon: labelIcon }).addTo(map);
+
+          marker.on('click', () => {
+            highlightCard(i);
+            document.getElementById("card-" + i).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          });
+
+          markers.push(marker);
+          markers.push(labelMarker);
+          bounds.push(c);
+        });
+
+        if (bounds.length > 0) {
+          map.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+      } catch (e) {
+        alert('Could not connect to server!');
+      }
+    }
+
+    // ── Movies from TMDB ──
+    async function loadMovies() {
+      const TMDB_KEY = '8265bd1679663a7ea12ac168da84d2e8'; // public demo key
+      const list = document.getElementById("places-list");
+      let langFilter = 'all';
+
+      async function fetchMovies() {
+        list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Loading movies...</div>';
+        try {
+          const [nowRes, upRes] = await Promise.all([
+            fetch(`https://api.themoviedb.org/3/movie/now_playing?api_key=${TMDB_KEY}&region=IN&language=en-IN`),
+            fetch(`https://api.themoviedb.org/3/movie/upcoming?api_key=${TMDB_KEY}&region=IN&language=en-IN`)
+          ]);
+          const nowData = await nowRes.json();
+          const upData = await upRes.json();
+          const all = [...(nowData.results||[]), ...(upData.results||[])];
+          // Deduplicate
+          const seen = new Set();
+          const movies = all.filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+
+          document.getElementById("count-pill").innerHTML = '<strong>' + movies.length + '</strong> movies';
+
+          // Language filter bar
+          const langs = [...new Set(movies.map(m => m.original_language))];
+          const langLabels = { en: '🇬🇧 English', hi: '🇮🇳 Hindi', kn: '🎭 Kannada', ta: '🎭 Tamil', te: '🎭 Telugu', ml: '🎭 Malayalam' };
+
+          list.innerHTML = `
+            <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 12px;">
+              <div class="place-tag" style="cursor:pointer;padding:6px 12px;font-size:12px;background:${langFilter==='all'?'var(--accent)':'rgba(255,107,53,0.12)'};color:${langFilter==='all'?'white':'var(--accent2)'}" onclick="setLangFilter('all')">All</div>
+              ${langs.map(l => `<div class="place-tag" style="cursor:pointer;padding:6px 12px;font-size:12px;background:${langFilter===l?'var(--accent)':'rgba(255,107,53,0.12)'};color:${langFilter===l?'white':'var(--accent2)'}" onclick="setLangFilter('${l}')">${langLabels[l]||l.toUpperCase()}</div>`).join('')}
+            </div>
+            <div id="movie-list"></div>
+          `;
+
+          renderMovies(movies);
+
+          window._allMovies = movies;
+        } catch(e) {
+          list.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted)">Could not load movies.</div>';
+        }
+      }
+
+      window.setLangFilter = function(lang) {
+        langFilter = lang;
+        fetchMovies();
+      };
+
+      function renderMovies(movies) {
+        const ml = document.getElementById("movie-list");
+        if (!ml) return;
+        const filtered = langFilter === 'all' ? movies : movies.filter(m => m.original_language === langFilter);
+        if (filtered.length === 0) { ml.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">No movies found.</div>'; return; }
+        ml.innerHTML = filtered.map(m => `
+          <div class="place-card" style="align-items:flex-start;">
+            ${m.poster_path ? `<img src="https://image.tmdb.org/t/p/w92${m.poster_path}" style="width:60px;border-radius:8px;flex-shrink:0;">` : '<div class="place-icon">🎬</div>'}
+            <div class="place-info">
+              <div class="place-name">${m.title}</div>
+              <div class="place-meta">⭐ ${m.vote_average?.toFixed(1)||'N/A'} • 📅 ${m.release_date||'TBA'}</div>
+              <div class="place-desc">${(m.overview||'').substring(0,120)}...</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      fetchMovies();
+    }
+
+    function highlightCard(i) {
+      document.querySelectorAll(".place-card").forEach(c => c.classList.remove("active"));
+      const card = document.getElementById("card-" + i);
+      if (card) card.classList.add("active");
+    }
+
+    function goBack() {
+      document.getElementById("results-screen").style.display = "none";
+      document.getElementById("vibe-screen").style.display = "flex";
+      document.getElementById("picker-fabs").style.display = "flex";
+      document.getElementById("map").style.display = "";
+      document.getElementById("side-panel").style.width = "";
+      document.getElementById("side-panel").style.position = "";
+      selected = { vibe: "", foods: [], activity: "" };
+    }
+
+    let userLocation = null;
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        document.getElementById('location-pill').innerHTML = '📍 Your location detected &nbsp;<span onclick="changeLocation()" style="color:var(--accent);cursor:pointer;text-decoration:underline;">Change</span>';
+      });
+    }
+    function changeLocation() {
+      const area = prompt('Enter area name (e.g. Indiranagar, Koramangala):');
+      if (area) {
+        document.getElementById('location-pill').innerHTML = '📍 ' + area + ' &nbsp;<span onclick="changeLocation()" style="color:var(--accent);cursor:pointer;text-decoration:underline;">Change</span>';
+        fetch('https://nominatim.openstreetmap.org/search?q=' + encodeURIComponent(area + ' Bangalore') + '&format=json&limit=1')
+          .then(r => r.json())
+          .then(data => {
+          if (data.length > 0) {
+            userLocation = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+            if (map) map.setView([userLocation.lat, userLocation.lng], 13);
+          }
+          });
+      }
+    }
+    renderButtons("vibes", vibes, "vibe");
+    renderButtons("activities", activities, "activity");
+    renderButtons("foods", foods, "foods");
+
+    // ── Suggest ──
+    const sv = { vibes: [], foods: [], activities: [] };
+
+    function toggleMulti(el, group) {
+      el.classList.toggle('active');
+      const v = el.textContent;
+      if (group === 'sv') {
+        if (el.classList.contains('active')) sv.vibes.push(v);
+        else sv.vibes = sv.vibes.filter(x => x !== v);
+      } else if (group === 'sf') {
+        if (el.classList.contains('active')) sv.foods.push(v);
+        else sv.foods = sv.foods.filter(x => x !== v);
+      } else if (group === 'sa') {
+        if (el.classList.contains('active')) sv.activities.push(v);
+        else sv.activities = sv.activities.filter(x => x !== v);
+      }
+    }
+
+    function toggleVarieties(el) {
+      el.classList.toggle('active');
+      document.getElementById('varieties-box').style.display = el.classList.contains('active') ? 'block' : 'none';
+    }
+
+    function toggleOne(groupId, el) {
+      const isActive = el.classList.contains('active');
+      document.querySelectorAll('#' + groupId + ' .dchip').forEach(c => c.classList.remove('active'));
+      if (!isActive) {
+        el.classList.add('active');
+        if (groupId === 's-activity') sv.activity = el.textContent;
+      } else {
+        if (groupId === 's-activity') sv.activity = '';
+      }
+    }
+
+    function openSuggest() { document.getElementById('suggest-overlay').classList.add('open'); }
+    function openFeedback() { document.getElementById('feedback-overlay').classList.add('open'); }
+
+    function closeOverlay(id) {
+      document.getElementById(id).classList.remove('open');
+      if (document.getElementById('suggest-form')) document.getElementById('suggest-form').style.display = 'block';
+      if (document.getElementById('suggest-thanks')) document.getElementById('suggest-thanks').style.display = 'none';
+      if (document.getElementById('feedback-form')) document.getElementById('feedback-form').style.display = 'block';
+      if (document.getElementById('feedback-thanks')) document.getElementById('feedback-thanks').style.display = 'none';
+    }
+
+    function overlayClick(e, id) {
+      if (e.target === document.getElementById(id)) closeOverlay(id);
+    }
+
+    async function submitSuggest() {
+      const name = document.getElementById('s-name').value.trim();
+      const area = document.getElementById('s-area').value.trim();
+      const maps = document.getElementById('s-maps').value.trim();
+      const vc = document.getElementById('varieties-chip');
+      const vi = document.getElementById('varieties-input').value.trim();
+      let foodType = sv.foods.join(', ');
+      if (vc.classList.contains('active') && vi) foodType = foodType ? foodType + ', ' + vi : vi;
+
+      if (!name || !area || !maps) {
+        alert('Please fill in place name, area and Google Maps link!');
+        return;
+      }
+
+      const body = {
+        name, area,
+        city: document.getElementById('s-city').value.trim() || 'Bangalore',
+        vibes: sv.vibes,
+        food_type: foodType || 'Skip',
+        activity: sv.activities.join(', ') || 'Hangout',
+        description: document.getElementById('s-desc').value.trim(),
+        maps_link: maps
+      };
+
+      try {
+        const res = await fetch(API + '/api/suggest', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          document.getElementById('suggest-form').style.display = 'none';
+          document.getElementById('suggest-thanks').style.display = 'block';
+          setTimeout(() => closeOverlay('suggest-overlay'), 3000);
+        } else {
+          const err = await res.json();
+          alert('Error: ' + (err.error || 'Something went wrong'));
+        }
+      } catch (e) { alert('Could not connect to server!'); }
+    }
+
+    async function submitFeedback() {
+      const message = document.getElementById('f-message').value.trim();
+      if (!message) { alert('Please write your feedback!'); return; }
+      const body = { name: '', email: '', message };
+      try {
+        const res = await fetch(API + '/api/feedback', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          document.getElementById('feedback-form').style.display = 'none';
+          document.getElementById('feedback-thanks').style.display = 'block';
+          setTimeout(() => closeOverlay('feedback-overlay'), 3000);
+        } else {
+          const txt = await res.text();
+          console.error('Feedback error:', txt);
+          alert('Something went wrong: ' + txt);
+        }
+      } catch (e) {
+        console.error(e);
+        alert('Could not connect to server!');
+      }
+    }
+
+    function openDonate() { document.getElementById('donate-overlay').classList.add('open'); }
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js");
+    }
+  </script>
+</body>
+
+</html>
