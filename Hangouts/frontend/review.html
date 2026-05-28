@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hangouts — Admin</title>
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg:#0f0f0f; --surface:#1a1a1a; --surface2:#222; --border:#2a2a2a; --accent:#ff6b35; --text:#f0f0f0; --muted:#888; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; }
+    .container { max-width:800px; margin:0 auto; padding:24px 20px 60px; }
+    h1 { font-family:'Syne',sans-serif; font-size:28px; margin-bottom:4px; }
+    h1 span { color:var(--accent); }
+    .sub { color:var(--muted); font-size:14px; margin-bottom:24px; }
+    .tabs { display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; }
+    .tab { padding:10px 18px; border-radius:100px; border:1px solid var(--border); background:var(--surface); color:var(--muted); cursor:pointer; font-weight:500; font-family:'DM Sans',sans-serif; transition:all 0.15s; font-size:13px; }
+    .tab.active { background:var(--accent); border-color:var(--accent); color:white; }
+    .section { display:none; } .section.active { display:block; }
+    .count { background:var(--accent); color:white; border-radius:50%; padding:2px 6px; font-size:11px; margin-left:4px; }
+    .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:10px; }
+    .card h3 { color:var(--text); margin-bottom:4px; font-size:15px; }
+    .meta { color:var(--muted); font-size:12px; margin-bottom:8px; }
+    .desc { color:#777; font-size:13px; margin-bottom:10px; line-height:1.5; }
+    .tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+    .tag { background:rgba(255,107,53,0.12); color:var(--accent); padding:2px 8px; border-radius:100px; font-size:11px; font-weight:500; }
+    .tag.green { background:rgba(34,197,94,0.15); color:#22c55e; }
+    .tag.yellow { background:rgba(234,179,8,0.15); color:#eab308; }
+    .tag.red { background:rgba(239,68,68,0.15); color:#ef4444; }
+    .btn-row { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+    .btn { padding:7px 14px; border:none; border-radius:100px; cursor:pointer; font-weight:600; font-family:'DM Sans',sans-serif; font-size:12px; }
+    .btn-approve { background:#22c55e; color:white; }
+    .btn-reject { background:#ef4444; color:white; }
+    .btn-edit { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+    .btn-delete { background:#ef4444; color:white; }
+    .btn-wip { background:#eab308; color:#000; }
+    .btn-resolved { background:#22c55e; color:white; }
+    .empty { text-align:center; padding:40px; color:var(--muted); }
+    .empty p:first-child { font-size:36px; margin-bottom:10px; }
+    /* Edit modal */
+    .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:1000; align-items:center; justify-content:center; padding:20px; }
+    .modal.open { display:flex; }
+    .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; width:100%; max-width:500px; max-height:90vh; overflow-y:auto; }
+    .modal-box h3 { font-family:'Syne',sans-serif; margin-bottom:16px; color:var(--text); }
+    .form-row { margin-bottom:12px; }
+    .form-row label { display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:5px; font-weight:600; }
+    .form-row input, .form-row textarea { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-size:14px; font-family:'DM Sans',sans-serif; outline:none; }
+    .form-row input:focus, .form-row textarea:focus { border-color:var(--accent); }
+    .form-row textarea { resize:vertical; min-height:60px; }
+    .modal-btns { display:flex; gap:8px; margin-top:16px; }
+    .btn-save { flex:1; padding:12px; background:var(--accent); color:white; border:none; border-radius:100px; font-size:14px; font-weight:600; cursor:pointer; font-family:'DM Sans',sans-serif; }
+    .btn-cancel { padding:12px 20px; background:var(--surface2); color:var(--muted); border:1px solid var(--border); border-radius:100px; font-size:14px; cursor:pointer; font-family:'DM Sans',sans-serif; }
+    /* Search */
+    .search-bar { display:flex; gap:8px; margin-bottom:16px; }
+    .search-bar input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:100px; padding:10px 16px; color:var(--text); font-size:14px; font-family:'DM Sans',sans-serif; outline:none; }
+    .search-bar input:focus { border-color:var(--accent); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>⚙️ Hangouts <span>Admin</span></h1>
+  <p class="sub">Manage places, review suggestions and feedback.</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('pending',this)">Pending <span class="count" id="pending-count">0</span></button>
+    <button class="tab" onclick="showTab('approved',this)">All Places <span class="count" id="approved-count">0</span></button>
+    <button class="tab" onclick="showTab('feedback',this)">Feedback <span class="count" id="feedback-count">0</span></button>
+  </div>
+
+  <!-- Pending -->
+  <div class="section active" id="pending-section">
+    <div id="pending-list"></div>
+  </div>
+
+  <!-- Approved -->
+  <div class="section" id="approved-section">
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Search places..." oninput="filterPlaces()" />
+    </div>
+    <div id="approved-list"></div>
+  </div>
+
+  <!-- Feedback -->
+  <div class="section" id="feedback-section">
+    <div id="feedback-list"></div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal" id="edit-modal">
+  <div class="modal-box">
+    <h3>✏️ Edit Place</h3>
+    <input type="hidden" id="edit-id">
+    <div class="form-row"><label>Name</label><input type="text" id="edit-name"></div>
+    <div class="form-row"><label>Area</label><input type="text" id="edit-area"></div>
+    <div class="form-row"><label>City</label><input type="text" id="edit-city"></div>
+    <div class="form-row"><label>Activity</label><input type="text" id="edit-activity"></div>
+    <div class="form-row"><label>Food Type</label><input type="text" id="edit-food"></div>
+    <div class="form-row"><label>Description</label><textarea id="edit-desc"></textarea></div>
+    <div class="form-row"><label>Google Maps Link</label><input type="text" id="edit-maps"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeEdit()">Cancel</button>
+      <button class="btn-save" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = '';
+  let allPlaces = [];
+
+  function showTab(tab, el) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById(tab + '-section').classList.add('active');
+  }
+
+  function statusTag(status) {
+    if (status === 'approved') return '<span class="tag green">✅ Approved</span>';
+    if (status === 'wip') return '<span class="tag yellow">🔨 Working On It</span>';
+    if (status === 'resolved') return '<span class="tag green">✔️ Resolved</span>';
+    return '<span class="tag">⏳ Pending</span>';
+  }
+
+  async function loadPending() {
+    const res = await fetch(API + '/api/pending');
+    const places = await res.json();
+    document.getElementById('pending-count').textContent = places.length;
+    const list = document.getElementById('pending-list');
+    if (places.length === 0) { list.innerHTML = "<div class='empty'><p>✅</p><p>No pending suggestions!</p></div>"; return; }
+    list.innerHTML = places.map(p => `
+      <div class="card" id="pcard-${p.id}">
+        <h3>${p.name}</h3>
+        <p class="meta">${p.area} • ${p.city}</p>
+        <div class="tags">
+          ${(p.vibes||[]).map(v=>'<span class="tag">'+v+'</span>').join('')}
+          ${p.activity?'<span class="tag">📍 '+p.activity+'</span>':''}
+          ${p.food_type?'<span class="tag">🍽️ '+p.food_type+'</span>':''}
+        </div>
+        <p class="desc">${p.description||'No description.'}</p>
+        ${p.maps_link?'<a href="'+p.maps_link+'" target="_blank" style="color:var(--accent);font-size:13px;">📍 View on Maps</a>':''}
+        <div class="btn-row">
+          <button class="btn btn-approve" onclick="approve(${p.id})">✅ Approve</button>
+          <button class="btn btn-reject" onclick="reject(${p.id},'pcard-${p.id}','pending-count')">❌ Reject</button>
+          <button class="btn btn-edit" onclick="openEdit(${p.id},'${escJ(p.name)}','${escJ(p.area)}','${escJ(p.city)}','${escJ(p.activity)}','${escJ(p.food_type)}','${escJ(p.description)}','${escJ(p.maps_link)}')">✏️ Edit</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function loadApproved() {
+    const res = await fetch(API + '/api/places?city=Bangalore');
+    const places = await res.json();
+    allPlaces = places;
+    document.getElementById('approved-count').textContent = places.length;
+    renderApproved(places);
+  }
+
+  function renderApproved(places) {
+    const list = document.getElementById('approved-list');
+    if (places.length === 0) { list.innerHTML = "<div class='empty'><p>📍</p><p>No approved places yet!</p></div>"; return; }
+    list.innerHTML = places.map(p => `
+      <div class="card" id="acard-${p.id}">
+        <h3>${p.name}</h3>
+        <p class="meta">${p.area} • ${p.city} • ${p.activity||''}</p>
+        <div class="tags">
+          ${(p.vibes||[]).map(v=>'<span class="tag">'+v+'</span>').join('')}
+          ${p.food_type?'<span class="tag">🍽️ '+p.food_type+'</span>':''}
+          <span class="tag green">✅ Live</span>
+        </div>
+        <p class="desc">${p.description||''}</p>
+        <div class="btn-row">
+          <button class="btn btn-edit" onclick="openEdit(${p.id},'${escJ(p.name)}','${escJ(p.area)}','${escJ(p.city)}','${escJ(p.activity)}','${escJ(p.food_type)}','${escJ(p.description)}','${escJ(p.maps_link)}')">✏️ Edit</button>
+          <button class="btn btn-delete" onclick="reject(${p.id},'acard-${p.id}','approved-count')">🗑️ Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function filterPlaces() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    const filtered = allPlaces.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.area||'').toLowerCase().includes(q) ||
+      (p.activity||'').toLowerCase().includes(q)
+    );
+    renderApproved(filtered);
+  }
+
+  async function loadFeedback() {
+    const res = await fetch(API + '/api/feedback');
+    const feedbacks = await res.json();
+    document.getElementById('feedback-count').textContent = feedbacks.length;
+    const list = document.getElementById('feedback-list');
+    if (feedbacks.length === 0) { list.innerHTML = "<div class='empty'><p>💬</p><p>No feedback yet!</p></div>"; return; }
+    list.innerHTML = feedbacks.map((f,i) => `
+      <div class="card" id="fcard-${f.id||i}">
+        <p class="meta">${f.created_at||''}</p>
+        <p class="desc">${f.message}</p>
+        <div class="btn-row">
+          <button class="btn btn-wip" onclick="setFeedbackStatus(this,'Working On It')">🔨 Working On It</button>
+          <button class="btn btn-resolved" onclick="setFeedbackStatus(this,'Resolved')">✔️ Resolved</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function setFeedbackStatus(btn, status) {
+    const card = btn.closest('.card');
+    const existing = card.querySelector('.status-tag');
+    if (existing) existing.remove();
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + (status === 'Resolved' ? 'green' : 'yellow');
+    tag.textContent = status === 'Resolved' ? '✔️ Resolved' : '🔨 Working On It';
+    tag.style.cssText = 'display:inline-block;margin-bottom:8px;';
+    tag.classList.add('status-tag');
+    card.querySelector('.desc').after(tag);
+  }
+
+  async function approve(id) {
+    await fetch(API + '/api/places/' + id + '/approve', { method: 'PATCH' });
+    document.getElementById('pcard-' + id)?.remove();
+    const c = document.getElementById('pending-count');
+    c.textContent = Math.max(0, parseInt(c.textContent) - 1);
+    loadApproved();
+  }
+
+  async function reject(id, cardId, countId) {
+    if (!confirm('Delete this place?')) return;
+    await fetch(API + '/api/places/' + id, { method: 'DELETE' });
+    document.getElementById(cardId)?.remove();
+    const c = document.getElementById(countId);
+    if (c) c.textContent = Math.max(0, parseInt(c.textContent) - 1);
+  }
+
+  function escJ(s) { return (s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+  function openEdit(id, name, area, city, activity, food, desc, maps) {
+    document.getElementById('edit-id').value = id;
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-area').value = area;
+    document.getElementById('edit-city').value = city;
+    document.getElementById('edit-activity').value = activity;
+    document.getElementById('edit-food').value = food;
+    document.getElementById('edit-desc').value = desc;
+    document.getElementById('edit-maps').value = maps;
+    document.getElementById('edit-modal').classList.add('open');
+  }
+
+  function closeEdit() { document.getElementById('edit-modal').classList.remove('open'); }
+
+  async function saveEdit() {
+    const id = document.getElementById('edit-id').value;
+    const body = {
+      name: document.getElementById('edit-name').value,
+      area: document.getElementById('edit-area').value,
+      city: document.getElementById('edit-city').value,
+      activity: document.getElementById('edit-activity').value,
+      food_type: document.getElementById('edit-food').value,
+      description: document.getElementById('edit-desc').value,
+      maps_link: document.getElementById('edit-maps').value
+    };
+    await fetch(API + '/api/places/' + id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    closeEdit();
+    loadPending();
+    loadApproved();
+  }
+
+  loadPending();
+  loadApproved();
+  loadFeedback();
+</script>
+</body>
+</html>
